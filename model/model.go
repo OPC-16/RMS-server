@@ -8,8 +8,8 @@ type User struct {
    Address         string `json:"address"`
    UserType        string `json:"usertype"`
    PasswordHash    string `json:"password_hash"`
+   Password        string `json:"password"`
    ProfileHeadline string `json:"profile_headline"`
-
 }
 
 type Profile struct {
