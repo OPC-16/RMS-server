@@ -29,6 +29,8 @@ func (a *App) loadRoutes() {
 
    // setting up the main routes
    router.POST("/signup", handler.Signup)
+   router.POST("/login", handler.Login)
+   router.POST("/uploadResume", handler.UploadResume)
 
    a.router = router
 }
