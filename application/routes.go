@@ -32,13 +32,16 @@ func (a *App) loadRoutes() {
    // setting up the main routes
    router.POST("/signup", handler.Signup)
    router.POST("/login", handler.Login)
-   router.POST("/uploadResume", handler.UploadResume, jwtMiddleware)
+   router.POST("/uploadResume", handler.UploadResume, jwtMiddlewareForApplicant)
+   router.POST("/admin/job", handler.PostJob, jwtMiddlewareForAdmin)
 
    a.router = router
 }
 
+// TODO: whole jwtMiddlewareForApplicant and jwtMiddlewareForAdmin have only one small difference, put the same code in a function
+
 // a middleware to verify JWT tokens for protected routes
-func jwtMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
+func jwtMiddlewareForApplicant(next echo.HandlerFunc) echo.HandlerFunc {
     return func(c echo.Context) error {
         authHeader := c.Request().Header.Get("Authorization")
         if authHeader == "" {
@@ -67,6 +70,43 @@ func jwtMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 
         //check UserType
         if claims["usertype"] != "Applicant" {
+            return c.JSON(http.StatusForbidden, map[string]string{"error": "Forbidden"})
+        }
+
+        // Token is valid and user type is 'Applicant', proceed to the next handler
+        return next(c)
+    }
+}
+
+func jwtMiddlewareForAdmin(next echo.HandlerFunc) echo.HandlerFunc {
+    return func(c echo.Context) error {
+        authHeader := c.Request().Header.Get("Authorization")
+        if authHeader == "" {
+            return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized, (empty token)"})
+        }
+
+        tokenString := authHeader[len("Bearer "):]
+
+        // Validate token
+        jwtToken, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+            // Check token signing method
+            if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+                return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+            }
+            return []byte("secret"), nil
+        })
+        if err != nil || !jwtToken.Valid {
+            return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
+        }
+
+        // extract claims
+        claims, ok := jwtToken.Claims.(jwt.MapClaims)
+        if !ok || !jwtToken.Valid {
+            return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
+        }
+
+        //check UserType
+        if claims["usertype"] != "Admin" {
             return c.JSON(http.StatusForbidden, map[string]string{"error": "Forbidden"})
         }
 

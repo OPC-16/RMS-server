@@ -51,7 +51,11 @@ func Signup(c echo.Context) error {
    }
 
    //respond with success
-   return c.JSON(http.StatusOK, map[string]string{"message": "User signed up successfully"})
+   if user.UserType == "Applicant" {
+      return c.JSON(http.StatusOK, map[string]string{"message": "Applicant signed up successfully"})
+   } else {
+      return c.JSON(http.StatusOK, map[string]string{"message": "Admin signed up successfully"})
+   }
 }
 
 func Login(c echo.Context) error {
@@ -115,8 +119,40 @@ func UploadResume(c echo.Context) error {
       return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
    }
 
-   //TEMP: return the data as json
+   //TODO: don't return the data, store it in db in the model.Profile struct
    return c.JSON(http.StatusOK, data)
+}
+
+// TODO: this route func works perfectly, but we manually have to add 'post_on' field which is *time.Time and also 'posted_by' field which is model.User
+func PostJob(c echo.Context) error {
+   rdb, ok := c.Get("redis").(*redis.Client)
+   if !ok {
+      return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to get Redis client from context"})
+   }
+
+   job := new(model.Job)
+
+   if err := c.Bind(job); err != nil {
+      return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid Input (Unable to Bind the request body to the job instance)"})
+   }
+
+   if job.Title == "" || job.Description == "" {
+      return c.JSON(http.StatusBadRequest, map[string]string{"error": "Job Title and Description are required"})
+   }
+
+   jobJson, err := json.Marshal(job)
+   if err != nil {
+      return fmt.Errorf("could not marshal user: %v", err)
+   }
+
+   ctx := c.Request().Context()
+   // Store JSON string in Redis with Title as key
+   err = rdb.Set(ctx, "job:" + job.Title, jobJson, 0).Err()
+   if err != nil {
+      return c.JSON(http.StatusBadRequest, map[string]string{"error": "Failed to store job data in Redis"})
+   }
+
+   return c.JSON(http.StatusOK, map[string]string{"message": "Job Posted successfully"})
 }
 
 func fetchAPIData(apiEndPoint, apiKey, filePath string) (map[string]interface{}, error) {
