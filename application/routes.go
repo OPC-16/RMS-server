@@ -38,35 +38,42 @@ func (a *App) loadRoutes() {
    a.router = router
 }
 
-// TODO: whole jwtMiddlewareForApplicant and jwtMiddlewareForAdmin have only one small difference, put the same code in a function
+func jwtMiddleware(c echo.Context) (error, jwt.MapClaims) {
+   authHeader := c.Request().Header.Get("Authorization")
+   if authHeader == "" {
+       return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized, (empty token)"}), nil
+   }
+
+   tokenString := authHeader[len("Bearer "):]
+
+   // Validate token
+   jwtToken, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+       // Check token signing method
+       if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+           return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+       }
+       return []byte("secret"), nil
+   })
+   if err != nil || !jwtToken.Valid {
+       return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"}), nil
+   }
+
+   // extract claims
+   claims, ok := jwtToken.Claims.(jwt.MapClaims)
+   if !ok || !jwtToken.Valid {
+       return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"}), nil
+   }
+
+   return nil, claims
+}
 
 // a middleware to verify JWT tokens for protected routes
 func jwtMiddlewareForApplicant(next echo.HandlerFunc) echo.HandlerFunc {
     return func(c echo.Context) error {
-        authHeader := c.Request().Header.Get("Authorization")
-        if authHeader == "" {
-            return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized, (empty token)"})
-        }
-
-        tokenString := authHeader[len("Bearer "):]
-
-        // Validate token
-        jwtToken, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-            // Check token signing method
-            if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-                return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
-            }
-            return []byte("secret"), nil
-        })
-        if err != nil || !jwtToken.Valid {
-            return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
-        }
-
-        // extract claims
-        claims, ok := jwtToken.Claims.(jwt.MapClaims)
-        if !ok || !jwtToken.Valid {
-            return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
-        }
+       err, claims := jwtMiddleware(c)
+       if err != nil {
+          return err
+       }
 
         //check UserType
         if claims["usertype"] != "Applicant" {
@@ -80,37 +87,17 @@ func jwtMiddlewareForApplicant(next echo.HandlerFunc) echo.HandlerFunc {
 
 func jwtMiddlewareForAdmin(next echo.HandlerFunc) echo.HandlerFunc {
     return func(c echo.Context) error {
-        authHeader := c.Request().Header.Get("Authorization")
-        if authHeader == "" {
-            return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized, (empty token)"})
-        }
-
-        tokenString := authHeader[len("Bearer "):]
-
-        // Validate token
-        jwtToken, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-            // Check token signing method
-            if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-                return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
-            }
-            return []byte("secret"), nil
-        })
-        if err != nil || !jwtToken.Valid {
-            return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
-        }
-
-        // extract claims
-        claims, ok := jwtToken.Claims.(jwt.MapClaims)
-        if !ok || !jwtToken.Valid {
-            return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
-        }
+       err, claims := jwtMiddleware(c)
+       if err != nil {
+          return err
+       }
 
         //check UserType
         if claims["usertype"] != "Admin" {
             return c.JSON(http.StatusForbidden, map[string]string{"error": "Forbidden"})
         }
 
-        // Token is valid and user type is 'Applicant', proceed to the next handler
+        // Token is valid and user type is 'Admin', proceed to the next handler
         return next(c)
     }
 }

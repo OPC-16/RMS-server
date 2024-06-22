@@ -142,7 +142,7 @@ func PostJob(c echo.Context) error {
 
    jobJson, err := json.Marshal(job)
    if err != nil {
-      return fmt.Errorf("could not marshal user: %v", err)
+      return fmt.Errorf("could not marshal job: %v", err)
    }
 
    ctx := c.Request().Context()
