@@ -50,6 +50,13 @@ func Signup(c echo.Context) error {
       return c.JSON(http.StatusBadRequest, map[string]string{"error": "Failed to store user data in Redis"})
    }
 
+   // Creating Sets for 'Admin's and 'Applicant's so that their retrieval would be easy
+   userSetKey := fmt.Sprintf("userType:%s", user.UserType)
+   err = rdb.SAdd(ctx, userSetKey, user.Email).Err()
+   if err != nil {
+      return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to store user data in Redis"})
+   }
+
    //respond with success
    if user.UserType == "Applicant" {
       return c.JSON(http.StatusOK, map[string]string{"message": "Applicant signed up successfully"})
@@ -236,4 +243,37 @@ func fetchAPIData(apiEndPoint, apiKey, filePath string) (map[string]interface{},
    }
 
    return result, nil
+}
+
+func ListApplicants(c echo.Context) error {
+   rdb, ok := c.Get("redis").(*redis.Client)
+   if !ok {
+      return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to get Redis client from context"})
+   }
+
+   ctx := c.Request().Context()
+   userSetKey := fmt.Sprintf("userType:%s", "Applicant")
+   applicantEmailIDs, err := rdb.SMembers(ctx, userSetKey).Result()
+   if err != nil {
+      return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch Applicants"})
+   }
+
+   applicants := []model.User{}
+   for _, appliapplicantEmailID := range applicantEmailIDs {
+      userKey := fmt.Sprintf("user:%s", appliapplicantEmailID)
+      userJson, err := rdb.Get(ctx, userKey).Result()
+      if err != nil {
+         return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch Applicants"})
+      }
+
+      var user model.User
+      err = json.Unmarshal([]byte(userJson), &user)
+      if err != nil {
+         return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to unmarshal user data"})
+      }
+
+      applicants = append(applicants, user)
+   }
+
+   return c.JSON(http.StatusOK, applicants)
 }
