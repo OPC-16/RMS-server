@@ -123,7 +123,6 @@ func UploadResume(c echo.Context) error {
    return c.JSON(http.StatusOK, data)
 }
 
-// TODO: this route func works perfectly, but we manually have to add 'post_on' field which is *time.Time and also 'posted_by' field which is model.User
 func PostJob(c echo.Context) error {
    rdb, ok := c.Get("redis").(*redis.Client)
    if !ok {
@@ -140,12 +139,32 @@ func PostJob(c echo.Context) error {
       return c.JSON(http.StatusBadRequest, map[string]string{"error": "Job Title and Description are required"})
    }
 
+   // setting the PostedOn field
+   now := time.Now().UTC()
+   job.PostedOn = &now
+
+   // Retriving the user (admin) who posted this Job.
+   // 1st we get the email of the user from the token claims, then as email is the key we used we retrieve the user from db and set the 'PostedBy' field
+   email := c.Get("email").(string)
+   ctx := c.Request().Context()
+   userJson, err := rdb.Get(ctx, "user:" + email).Result()
+   if err != nil {
+      return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to retrieve the Admin details"})
+   }
+
+   var admin model.User
+   if err := json.Unmarshal([]byte(userJson), &admin); err != nil {
+      return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to unmarshal user data"})
+   }
+
+   //setting the PostedBy field
+   job.PostedBy = admin
+
    jobJson, err := json.Marshal(job)
    if err != nil {
       return fmt.Errorf("could not marshal job: %v", err)
    }
 
-   ctx := c.Request().Context()
    // Store JSON string in Redis with Title as key
    err = rdb.Set(ctx, "job:" + job.Title, jobJson, 0).Err()
    if err != nil {
