@@ -178,6 +178,13 @@ func PostJob(c echo.Context) error {
       return c.JSON(http.StatusBadRequest, map[string]string{"error": "Failed to store job data in Redis"})
    }
 
+   // Creating Set for jobs so that their retrieval would be easy
+   jobSetKey := "jobSet"
+   err = rdb.SAdd(ctx, jobSetKey, job.Title).Err()
+   if err != nil {
+      return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to store job data in Redis"})
+   }
+
    return c.JSON(http.StatusOK, map[string]string{"message": "Job Posted successfully"})
 }
 
@@ -276,4 +283,37 @@ func ListApplicants(c echo.Context) error {
    }
 
    return c.JSON(http.StatusOK, applicants)
+}
+
+func ListJobs(c echo.Context) error {
+   rdb, ok := c.Get("redis").(*redis.Client)
+   if !ok {
+      return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to get Redis client from context"})
+   }
+   ctx := c.Request().Context()
+
+   jobSetKey := "jobSet"
+   jobTitles, err := rdb.SMembers(ctx, jobSetKey).Result()
+   if err != nil {
+      return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch Jobs"})
+   }
+
+   jobs := []model.Job{}
+   for _, jobTitle := range jobTitles {
+      jobKey := fmt.Sprintf("job:%s", jobTitle)
+      jobJson, err := rdb.Get(ctx, jobKey).Result()
+      if err != nil {
+         return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch Jobs"})
+      }
+
+      var job model.Job
+      err = json.Unmarshal([]byte(jobJson), &job)
+      if err != nil {
+         return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to unmarshal job data"})
+      }
+
+      jobs = append(jobs, job)
+   }
+
+   return c.JSON(http.StatusOK, jobs)
 }

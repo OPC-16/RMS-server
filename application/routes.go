@@ -35,6 +35,7 @@ func (a *App) loadRoutes() {
    router.POST("/uploadResume", handler.UploadResume, jwtMiddlewareForApplicant)
    router.POST("/admin/job", handler.PostJob, jwtMiddlewareForAdmin)
    router.GET("/admin/applicants", handler.ListApplicants, jwtMiddlewareForAdmin)
+   router.GET("/jobs", handler.ListJobs, jwtMiddlewareForApplicant)
 
    a.router = router
 }
