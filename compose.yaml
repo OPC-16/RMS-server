@@ -1,0 +1,23 @@
+services:
+  app:
+    # The 'app' service uses an image that's built from the Dockerfile in the current directory.
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - REDIS_HOST=redis
+    # our app depends on the redis database to start first
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: "redis:alpine"
+    ports:
+      - "6379:6379"
+    # checking health of redis server with help of 'redis-cli' command
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
