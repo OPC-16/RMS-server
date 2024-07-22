@@ -285,6 +285,30 @@ func ListApplicants(c echo.Context) error {
    return c.JSON(http.StatusOK, applicants)
 }
 
+func ListApplicant(c echo.Context) error {
+   rdb, ok := c.Get("redis").(*redis.Client)
+   if !ok {
+      return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to get Redis client from context"})
+   }
+   ctx := c.Request().Context()
+
+   applicantID := c.Param("applicant_id")
+   result, err := rdb.Get(ctx, applicantID).Result()
+   if err == redis.Nil {
+      return c.JSON(http.StatusNotFound, map[string]string{"error": "Applicant not found"})
+   } else if err != nil {
+      return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch the applicant data"})
+   }
+
+   var applicant model.User
+   err = json.Unmarshal([]byte(result), &applicant)
+   if err != nil {
+      return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to parse the applicant data"})
+   }
+
+   return c.JSON(http.StatusOK, applicant)
+}
+
 func ListJobs(c echo.Context) error {
    rdb, ok := c.Get("redis").(*redis.Client)
    if !ok {
@@ -316,4 +340,28 @@ func ListJobs(c echo.Context) error {
    }
 
    return c.JSON(http.StatusOK, jobs)
+}
+
+func ListJob(c echo.Context) error {
+   rdb, ok := c.Get("redis").(*redis.Client)
+   if !ok {
+      return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to get Redis client from context"})
+   }
+   ctx := c.Request().Context()
+
+   jobID := c.Param("job_id")
+   result, err := rdb.Get(ctx, jobID).Result()
+   if err == redis.Nil {
+      return c.JSON(http.StatusNotFound, map[string]string{"error": "Job not found"})
+   } else if err != nil {
+      return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch the job data"})
+   }
+
+   var job model.Job
+   err = json.Unmarshal([]byte(result), &job)
+   if err != nil {
+      return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to parse the job data"})
+   }
+
+   return c.JSON(http.StatusOK, job)
 }
